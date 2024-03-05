@@ -1,3 +1,9 @@
+// --------------------------- libaries -------------------
+#include <Wire.h>
+#include <VL53L0X.h>
+
+// ------------------- State variables -------------------
+
 #define IR1 A0
 #define IR2 A1
 #define IR3 A2
@@ -6,6 +12,13 @@
 #define IR6 A5
 #define IR7 5
 #define IR8 6
+
+#define XSHUT_PIN_1 11
+#define XSHUT_PIN_2 12
+#define XSHUT_PIN_3 13
+#define XSHUT_PIN_4 14
+#define XSHUT_PIN_5 22
+#define XSHUT_PIN_6 23
 
 #define RMotorA 12
 #define RMotorB 13
@@ -19,6 +32,15 @@
 
 #define WHITE 0
 #define BLACK 1
+
+// ------------------- Objects -----------------
+
+VL53L0X sensorOne;
+VL53L0X sensorTwo;
+VL53L0X sensorThree;
+VL53L0X sensorFour;
+VL53L0X sensorFive;
+VL53L0X sensorSix;
 
 int MotorBasespeed = 60;  //56
 
@@ -42,13 +64,87 @@ void set_speed();
 void set_forward();
 void turnright();
 void turnleft();
-void isRight();
-void isLeft();
-void isCross();
+bool isRight();
+bool isLeft();
+bool isCross();
+
+int distTOFOne;
+int distTOFTwo;
+int distTOFThree;
+int distTOFFour;
+int distTOFFive;
+int distTOFSix;
 
 
 void setup() {
   Serial.begin(9600);
+  Serial.begin(115200);
+  Wire.begin();
+
+  while (!Serial) {
+    delay(1);
+  }
+
+
+  // Set the XSHUT pins as outputs
+  pinMode(XSHUT_PIN_1, OUTPUT);
+  pinMode(XSHUT_PIN_2, OUTPUT);
+  pinMode(XSHUT_PIN_3, OUTPUT);
+  pinMode(XSHUT_PIN_4, OUTPUT);
+  pinMode(XSHUT_PIN_5, OUTPUT);
+  pinMode(XSHUT_PIN_6, OUTPUT);
+
+  // Keep all sensors in reset mode (XSHUT LOW)
+  digitalWrite(XSHUT_PIN_1, LOW);
+  digitalWrite(XSHUT_PIN_2, LOW);
+  digitalWrite(XSHUT_PIN_3, LOW);
+  digitalWrite(XSHUT_PIN_4, LOW);
+  digitalWrite(XSHUT_PIN_5, LOW);
+  digitalWrite(XSHUT_PIN_6, LOW);
+
+  // Power up sensor 1
+  digitalWrite(XSHUT_PIN_1, HIGH);
+  delay(100);
+  sensorOne.init();
+  sensorOne.setAddress(0x30);
+
+  // Power up sensor 2
+  digitalWrite(XSHUT_PIN_2, HIGH);
+  delay(100);
+  sensorTwo.init();
+  sensorTwo.setAddress(0x31);
+
+  // Power up sensor 3
+  digitalWrite(XSHUT_PIN_3, HIGH);
+  delay(100);
+  sensorThree.init();
+  sensorThree.setAddress(0x32);
+
+  // Power up sensor 4
+  digitalWrite(XSHUT_PIN_4, HIGH);
+  delay(100);
+  sensorFour.init();
+  sensorFour.setAddress(0x33);
+
+  // Power up sensor 5
+  digitalWrite(XSHUT_PIN_5, HIGH);
+  delay(100);
+  sensorFive.init();
+  sensorFive.setAddress(0x34);
+
+  // Power up sensor 6
+  digitalWrite(XSHUT_PIN_6, HIGH);
+  delay(100);
+  sensorSix.init();
+  sensorSix.setAddress(0x35);
+
+  sensorOne.startContinuous();
+  sensorTwo.startContinuous();
+  sensorThree.startContinuous();
+  sensorFour.startContinuous();
+  sensorFive.startContinuous();
+  sensorSix.startContinuous();
+
   pinMode(IR1, INPUT);
   pinMode(IR2, INPUT);
   pinMode(IR3, INPUT);
@@ -67,13 +163,25 @@ void setup() {
   delay(2000);
 
   // ------------------------------------------- main code --------------------------------------------------
-  
+
+  // first right junction
+  while (!isRight()) {
+    go();
+  }
+  // skip the junction
+  set_forward();
+  delay(1000);
+
+  //get the distance from a desired sensor
+  distTOFOne = sensorOne.readRangeContinuousMillimeters();
+  Serial.print("DistTOFOne : ");
+  Serial.print(distL);
+  Serial.print('\t');
 }
 
 void loop() {}
 
 void go() {
-  read_IR();
   PID_control();
   set_speed();
 }
@@ -156,7 +264,8 @@ void stop() {
   digitalWrite(RMotorB, LOW);
 }
 
-void isRight() {
+bool isRight() {
+  read_IR();
   if (IR_val[0] == WHITE && IR_val[1] == WHITE && IR_val[2] == WHITE && IR_val[3] == BLACK && IR_val[4] == BLACK && IR_val[5] == BLACK && IR_val[6] == BLACK && IR_val[7] == BLACK) {
     return true;
   }
@@ -166,10 +275,12 @@ void isRight() {
   if (IR_val[0] == WHITE && IR_val[1] == WHITE && IR_val[2] == WHITE && IR_val[3] == WHITE && IR_val[4] == WHITE && IR_val[5] == BLACK && IR_val[6] == BLACK && IR_val[7] == BLACK) {
     return true;
   }
+  return false;
 }
 
 
-void isLeft() {
+bool isLeft() {
+  read_IR();
   if (IR_val[0] == BLACK && IR_val[1] == BLACK && IR_val[2] == BLACK && IR_val[3] == WHITE && IR_val[4] == WHITE && IR_val[5] == WHITE && IR_val[6] == WHITE && IR_val[7] == WHITE) {
     return true;
   }
@@ -179,9 +290,11 @@ void isLeft() {
   if (IR_val[0] == BLACK && IR_val[1] == BLACK && IR_val[2] == BLACK && IR_val[3] == BLACK && IR_val[4] == BLACK && IR_val[5] == WHITE && IR_val[6] == WHITE && IR_val[7] == WHITE) {
     return true;
   }
+  return false;
 }
 
-void isCross() {
+bool isCross() {
+  read_IR();
   if (IR_val[0] == WHITE && IR_val[1] == WHITE && IR_val[2] == WHITE && IR_val[3] == WHITE && IR_val[4] == WHITE && IR_val[5] == WHITE && IR_val[6] == WHITE && IR_val[7] == WHITE) {
     return true;
   }
@@ -194,4 +307,5 @@ void isCross() {
   if (IR_val[0] == WHITE && IR_val[1] == WHITE && IR_val[2] == WHITE && IR_val[3] == WHITE && IR_val[4] == WHITE && IR_val[5] == WHITE && IR_val[6] == WHITE && IR_val[7] == BLACK) {
     return true;
   }
+  return false;
 }
